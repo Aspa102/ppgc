@@ -1,0 +1,16 @@
+{
+  "Name": "///NAME",
+  "Author": "///BYLINE",
+  "Description": "///DESC",
+  "ModVersion": "1.0",
+  "GameVersion": "1.14+",
+  "ThumbnailPath": "TEMPLATE.png",
+  "EntryPoint": "Mod.Mod",
+  "Tags": [],
+  "Scripts": [
+    "main.cs"
+  ],
+  "Active": true,
+  "UGCIdentity": null,
+  "CreatorUGCIdentity": null
+}

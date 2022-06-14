@@ -1,0 +1,912 @@
+﻿using UnityEngine;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using UnityEngine.Events;
+using TMPro;
+using UnityEngine.SceneManagement;
+using System.Linq;
+
+namespace Mod
+{
+	public class Mod : MonoBehaviour
+	{
+		public static Map[] Maps;
+		public static Map Vol;
+		public static Sprite TemplateSprite = ModAPI.LoadSprite("TEMPLATE.png");
+		public static string mapname;
+		public static MapSelectionMenuBehaviour mapmenu = UnityEngine.Object.FindObjectOfType<MapSelectionMenuBehaviour>();
+		public static bool debounce = false;
+		public static Sprite Square = ModAPI.LoadSprite("black.png");
+		public static Sprite Lava = ModAPI.LoadSprite("Lava.png");
+		public static Sprite Acid = ModAPI.LoadSprite("Acid.png");
+		public static AudioClip acidhiss = ModAPI.LoadSound("Hiss.wav");
+		public static bool Done = false;
+		///NAME
+		///CUSTOMSPRITES
+
+		public static PhysicalProperties phys = ModAPI.FindPhysicalProperties("Soft");
+
+		public static void CreateMap(MapSelectionMenuBehaviour mapmenuthingy, string name, string desc, Sprite thumb)
+		{
+			if (!Done)
+			{
+				Vol = ScriptableObject.CreateInstance<Map>();
+				Vol.name = name;
+				mapname = Vol.name;
+				Vol.Description = desc;
+				Vol.Thumbnail = thumb;
+				var baseplate = Resources.Load<Map>("Maps/Default");
+				Vol.Prefab = baseplate.Prefab;
+				Vol.UniqueIdentity = System.Guid.NewGuid().ToString();
+				MapRegistry.Register(Vol);
+			}
+			Done = true;
+			
+			phys.Brittleness = 0f;
+			phys.Buoyancy = 0f;
+			phys.Flammability = 0f;
+			phys.MagneticAttractionIntensity = 0f;
+			phys.Conducting = false;
+			phys.Burnrate = 0f;
+			phys.ImpactIntensityMutliplier = 1f;
+			phys.HitVolumeMultiplier = 1f;
+			phys.BulletSpeedAbsorptionPower = 0f;
+			phys.Softness = 0.1f;
+			phys.LodgeStrengthMultiplier = 0.1f;
+			phys.SharpForceThresholdMultiplier = 1f;
+			mapmenuthingy.RegenerateView();
+		}
+
+		public static void OnLoad()
+		{
+			CreateMap(mapmenu, MapName, "Template", TemplateSprite);
+		}
+
+		public static void RemoveBorders()
+		{
+			foreach (var render in GameObject.Find("Root").transform.parent.GetComponentsInChildren<SpriteRenderer>())
+			{
+				if (render.gameObject.layer == LayerMask.NameToLayer("Bounds") && render.gameObject.GetComponent<Undraggable>())
+				{
+					Destroy(render.gameObject);
+				}
+			}
+
+			Map eggs = Resources.Load<Map>("Maps/Humongous");
+			foreach (MapLightBehaviour light in UnityEngine.Object.FindObjectsOfType<MapLightBehaviour>())
+			{
+				Destroy(light.gameObject);
+			}
+			var thing = Instantiate<GameObject>(eggs.Prefab.transform.Find("Lightbulb/BulbGlow/full ambient").gameObject);
+			thing.transform.position = new Vector2(500f, 100f);
+			thing.transform.localScale = new Vector2(100000f, 100000f);
+			thing.GetComponent<SpriteRenderer>().material.SetFloat("_GlowIntensity", 1.2f);
+			thing.GetComponent<SpriteRenderer>().material.SetColor("_GlowColour", new Color32(255, 255, 255, 225));
+			if (GameObject.Find("Panels"))
+			{
+				GameObject.Find("Panels").transform.localScale = new Vector2(100000f, 100000f);
+			}
+			MapConfig mapconfig = UnityEngine.Object.FindObjectOfType<MapConfig>();
+			mapconfig.GetComponent<BoundingBoxBehaviour>().BoundingBox = new Bounds(new Vector3(500f, 250f, 0f), new Vector3(1500000f, 1500000f, 0f));
+		}
+
+		public static void CreateGameObjects(string Name, Vector2 Pos, Vector2 Size, Quaternion Rotation, string Layer, bool NoCollision, int Order = 0)
+		{
+			var NewGameobject = ModAPI.CreatePhysicalObject(Name, Mod.Square);
+			NewGameobject.tag = "NoClear";
+			NewGameobject.layer = LayerMask.NameToLayer("Bounds");
+			NewGameobject.transform.localScale = Size;
+			NewGameobject.transform.position = Pos;
+			if (Layer == "Front")
+			{
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Top");
+			}
+			if (Layer == "Back")
+			{
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Background");
+			}
+			NewGameobject.transform.rotation = Rotation;
+			if (NoCollision)
+			{
+				NewGameobject.GetComponent<Collider2D>().enabled = false;
+			}
+			NewGameobject.transform.parent = null;
+			NewGameobject.GetComponent<SpriteRenderer>().sortingOrder = Order;
+			NewGameobject.AddComponent<Undraggable>();
+			NewGameobject.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+			NewGameobject.AddComponent<ContextMenuOptionComponent>();
+			PhysicalBehaviour physicalBehaviour = NewGameobject.GetComponent<PhysicalBehaviour>();
+			physicalBehaviour.Properties = Mod.phys;
+			physicalBehaviour.SpawnSpawnParticles = false;
+			physicalBehaviour.OverrideShotSounds = new AudioClip[0];
+			physicalBehaviour.OverrideImpactSounds = new AudioClip[0];
+			physicalBehaviour.Deletable = false;
+			physicalBehaviour.Disintegratable = false;
+			///NewGameobject.AddComponent<AudioSource>();
+			///NewGameobject.AddComponent<AudioSourceTimeScaleBehaviour>();
+			NewGameobject.AddComponent<TestDelay>();
+		}
+
+		public static void CreateCustomGameObjects(string Name, Vector2 Pos, Vector2 Size, Quaternion Rotation, Sprite spritey, string Layer, bool NoCollision, int Order = 0)
+		{
+			var NewGameobject = ModAPI.CreatePhysicalObject(Name, spritey);
+			NewGameobject.tag = "NoClear";
+			NewGameobject.layer = LayerMask.NameToLayer("Bounds");
+			NewGameobject.transform.position = Pos;
+			NewGameobject.transform.localScale = Size;
+			NewGameobject.transform.rotation = Rotation;
+			NewGameobject.FixColliders();
+			if (Layer == "Front")
+			{
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Top");
+			}
+			if (Layer == "Back")
+			{
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Background");
+			}
+			if (NoCollision)
+			{
+				foreach (var col in NewGameobject.GetComponents<Collider2D>())
+                {
+					col.enabled = false;
+				}
+			}
+			NewGameobject.transform.parent = null;
+			NewGameobject.GetComponent<SpriteRenderer>().sortingOrder = Order;
+			NewGameobject.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+			NewGameobject.AddComponent<Undraggable>();
+			NewGameobject.AddComponent<ContextMenuOptionComponent>();
+			PhysicalBehaviour physicalBehaviour = NewGameobject.GetComponent<PhysicalBehaviour>();
+			physicalBehaviour.Properties = Mod.phys;
+			physicalBehaviour.SpawnSpawnParticles = false;
+			physicalBehaviour.OverrideShotSounds = new AudioClip[0];
+			physicalBehaviour.OverrideImpactSounds = new AudioClip[0];
+			physicalBehaviour.Deletable = false;
+			physicalBehaviour.Disintegratable = false;
+			physicalBehaviour.rigidbody = NewGameobject.GetComponent<Rigidbody2D>();
+			///NewGameobject.AddComponent<AudioSource>();
+			///NewGameobject.AddComponent<AudioSourceTimeScaleBehaviour>();
+			NewGameobject.AddComponent<TestDelay>();
+		}
+
+		public static void CreateSpawnable(string Name, Vector2 Pos, Vector2 Size, Quaternion Rotation, bool FacingRight, bool Frozen)
+		{
+			GameObject NewGameobject = Instantiate<GameObject>(ModAPI.FindSpawnable(Name).Prefab, Vector3.zero, Quaternion.identity); 
+			NewGameobject.transform.position = Pos;
+			NewGameobject.transform.localScale = Size;
+			NewGameobject.transform.rotation = Rotation;
+			if (!FacingRight)
+			{
+				NewGameobject.transform.localScale = new Vector2(-NewGameobject.transform.localScale.x, NewGameobject.transform.localScale.y);
+			}
+			if (Frozen)
+			{
+				NewGameobject.AddComponent<TestDelay>();
+			}
+		}
+
+		public static void CreatePhysicsGameObjects(string Name, Vector2 Pos, Vector2 Size, Quaternion Rotation, Sprite spritey, string Layer, bool NoCollision)
+		{
+			var NewGameobject = ModAPI.CreatePhysicalObject(Name, spritey);
+			if (Layer == "Front")
+			{
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Objects");
+			}
+			if (Layer == "Back")
+			{
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Background");
+			}
+			NewGameobject.tag = "NoClear";
+			NewGameobject.transform.position = Pos;
+			NewGameobject.transform.localScale = Size;
+			NewGameobject.transform.rotation = Rotation;
+			NewGameobject.FixColliders(); 
+			PhysicalBehaviour physicalBehaviour = NewGameobject.GetComponent<PhysicalBehaviour>();
+			if (NoCollision)
+			{
+				NewGameobject.GetComponent<Collider2D>().enabled = false;
+			}
+			physicalBehaviour.OverrideShotSounds = new AudioClip[0];
+			physicalBehaviour.OverrideImpactSounds = new AudioClip[0];
+		}
+
+		public static void CreateLightSources(String Name, Vector2 Pos, Vector2 Size, Quaternion Rotation, Color32 color, float brightness)
+		{
+			var NewGameobject = new GameObject();
+			NewGameobject.tag = "NoClear";
+			NewGameobject.transform.position = Pos;
+			NewGameobject.transform.localScale = Size;
+			NewGameobject.transform.rotation = Rotation;
+			var light = ModAPI.CreateLight(NewGameobject.transform, color, brightness);
+			light.gameObject.tag = "NoClear";
+		}
+
+		public static void CreateBackground(String Name, Color32 color, Sprite spritey, bool IsTexture)
+		{
+			var NewGameobject = new GameObject();
+			NewGameobject.tag = "NoClear";
+			NewGameobject.transform.position = new Vector2(572.314f, 496.2918f);
+			var whitespace = Texture2D.whiteTexture;
+			whitespace.Resize(16, 16);
+			whitespace.Apply();
+			if (IsTexture == true)
+			{
+				var croppedTexture = new Texture2D((int)spritey.rect.width, (int)spritey.rect.height);
+				var pixels = spritey.texture.GetPixels((int)spritey.textureRect.x,
+														(int)spritey.textureRect.y,
+														(int)spritey.textureRect.width,
+														(int)spritey.textureRect.height);
+				croppedTexture.SetPixels(pixels);
+				croppedTexture.wrapMode = TextureWrapMode.Repeat;
+				croppedTexture.filterMode = FilterMode.Point;
+				croppedTexture.Apply();
+				var copy = Sprite.Create(croppedTexture, new Rect(0f, 0f, (float)croppedTexture.width, (float)croppedTexture.height), 0.5f * Vector2.one, 140f, 0, SpriteMeshType.FullRect);
+				NewGameobject.AddComponent<SpriteRenderer>().drawMode = SpriteDrawMode.Tiled;
+				NewGameobject.GetComponent<SpriteRenderer>().material = ModAPI.FindMaterial("Sprites-Default");
+				NewGameobject.GetComponent<SpriteRenderer>().sprite = copy;
+				NewGameobject.GetComponent<SpriteRenderer>().size = new Vector2(5, 5);
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Bottom");
+				///NewGameobject.GetComponent<SpriteRenderer>().sortingOrder = 25;
+			}
+			else
+			{
+				NewGameobject.AddComponent<SpriteRenderer>().sprite = Sprite.Create(whitespace, new Rect(0f, 0f, 16f, 16f), 0.5f * Vector2.one, 35f);
+				NewGameobject.GetComponent<SpriteRenderer>().color = color;
+				NewGameobject.GetComponent<SpriteRenderer>().sortingLayerID = SortingLayer.NameToID("Bottom");
+				///NewGameobject.GetComponent<SpriteRenderer>().sortingOrder = 25;
+			}
+			NewGameobject.transform.localScale = new Vector2(2533.112f, 2175.462f);
+			NewGameobject.transform.parent = null;
+			NewGameobject.layer = LayerMask.NameToLayer("Bounds");
+		}
+
+		public static void CreateParticleSources(string Name, Vector2 Pos, float Speed, string Particles)
+		{
+			var NewGameobject = new GameObject();
+			NewGameobject.tag = "NoClear";
+			NewGameobject.name = Name;
+			NewGameobject.transform.position = Pos;
+			NewGameobject.AddComponent<ParticleDelay>();
+			NewGameobject.GetComponent<ParticleDelay>().Speed1 = Speed;
+			NewGameobject.GetComponent<ParticleDelay>().Particles1 = Particles;
+		}
+
+		public static void AddAudioToAmbience(float Bacon, AudioClip[] Eggs)
+		{
+			///Changing this to other variables in the MapConfig will let you force snow on and other stuff.
+			MapConfig mapconfig = UnityEngine.Object.FindObjectOfType<MapConfig>();
+			///mapconfig.OverrideAmbientSounds = true;
+			var hhh = mapconfig.transform.parent.GetComponent<PlayAudioAtRandom>();
+			hhh.Clips = Eggs;
+			hhh.ChancePerSecond = Bacon;
+		}
+
+		public static void CreateWaterBlock(Vector3 Size, Vector3 Pos, Quaternion Rotation, string Type)
+		{
+			Map eggs = Resources.Load<Map>("Maps/Sea");
+			GameObject WaterBefore = eggs.Prefab.transform.Find("Root/Sea").gameObject;
+			var Water = Instantiate<GameObject>(WaterBefore, Vector3.zero, Quaternion.identity);
+			Water.transform.rotation = Rotation;
+			Water.transform.localScale = new Vector2(Size.x, -Size.y);
+			///Water.transform.SetParent(GameObject.Find("Root").transform);
+			Water.transform.localPosition = Pos;
+			Water.AddComponent<WaterBlockBehaviour>().GlobalTop = Water.GetComponent<SpriteRenderer>().bounds.max.y;
+			Water.GetComponent<WaterBlockBehaviour>().GlobalBottom = Water.GetComponent<SpriteRenderer>().bounds.min.y;
+			Water.GetComponent<WaterBlockBehaviour>().GlobalLeft = Water.GetComponent<SpriteRenderer>().bounds.min.x;
+			Water.GetComponent<WaterBlockBehaviour>().GlobalRight = Water.GetComponent<SpriteRenderer>().bounds.max.x;
+			Water.GetComponent<WaterBlockBehaviour>().WaterSize = Size;
+			Water.GetComponent<WaterBlockBehaviour>().WaterCenter = Pos;
+			Water.GetComponent<WaterBlockBehaviour>().Drag = Water.GetComponent<WaterBehaviour>().Drag;
+			Water.GetComponent<WaterBlockBehaviour>().Buoyancy = Water.GetComponent<WaterBehaviour>().Buoyancy;
+			Water.GetComponent<WaterBlockBehaviour>().Trigger = Water.GetComponent<WaterBehaviour>().Trigger;
+			Water.GetComponent<WaterBlockBehaviour>().Splash = UnityEngine.Object.Instantiate<GameObject>(Water.GetComponent<WaterBehaviour>().Splash);
+			Water.GetComponent<WaterBlockBehaviour>().Splash.SetActive(false);
+			Water.GetComponent<WaterBlockBehaviour>().Layers = Water.GetComponent<WaterBehaviour>().Layers;
+			Water.GetComponent<WaterBlockBehaviour>().ObjectsToBeActiveIfWater = Water.GetComponent<WaterBehaviour>().ObjectsToBeActiveIfWater;
+			Water.GetComponent<WaterBlockBehaviour>().BoilingWaterSound = Water.GetComponent<WaterBehaviour>().BoilingWaterSound;
+			Water.GetComponent<WaterBlockBehaviour>().Ice = Water.GetComponent<WaterBehaviour>().Ice;
+			Water.GetComponent<WaterBehaviour>().enabled = false;
+			WaterBlockBehaviour.Instance = Water.GetComponent<WaterBlockBehaviour>();
+			var main = Water.GetComponentInChildren<ParticleSystem>().main;
+			var shape = Water.GetComponentInChildren<ParticleSystem>().shape;
+			var emission = Water.GetComponentInChildren<ParticleSystem>().emission;
+			main.scalingMode = ParticleSystemScalingMode.Shape;
+			shape.scale = Size;
+			shape.rotation = Water.transform.eulerAngles;
+			emission.rateOverTimeMultiplier = 1f * (Size.x / 4.8f);
+			if (Type == "Lava")
+			{
+				Water.GetComponent<SpriteRenderer>().drawMode = SpriteDrawMode.Tiled;
+				Water.GetComponent<SpriteRenderer>().tileMode = SpriteTileMode.Continuous;
+				Water.GetComponent<SpriteRenderer>().sprite = Mod.Lava;
+				Water.GetComponent<SpriteRenderer>().material = ModAPI.FindMaterial("Sprites-Default");
+				Water.GetComponent<WaterBlockBehaviour>().Lava = true;
+				var light = ModAPI.CreateLight(Water.transform, new Color32(255, 129, 32, 255), 15, 5);
+				Water.AddComponent<LavaBurn>();
+				foreach (var particle in Water.GetComponent<WaterBlockBehaviour>().Splash.GetComponentsInChildren<ParticleSystem>())
+                {
+					var shape2 = particle.shape;
+					var main2 = particle.main;
+					shape2.texture = Mod.Lava.texture;
+					main2.startColor = new Color(1f, 0.5f, 0.12f, 1f);
+				}
+				Water.GetComponent<WaterBlockBehaviour>().Buoyancy = 0f;
+				Water.GetComponent<WaterBlockBehaviour>().Drag += 0.6f;
+			}
+			else if (Type == "Acid")
+			{
+				Water.GetComponent<SpriteRenderer>().color = new Color(0, 1, 0, 1);
+				Water.GetComponent<SpriteRenderer>().drawMode = SpriteDrawMode.Tiled;
+				Water.GetComponent<SpriteRenderer>().tileMode = SpriteTileMode.Continuous;
+				Water.GetComponent<SpriteRenderer>().sprite = Mod.Acid;
+				Water.GetComponent<SpriteRenderer>().material = ModAPI.FindMaterial("Sprites-Default");
+				var AcidLight = ModAPI.CreateLight(Water.transform, new Color(0, 1, 0, 1), 4, 3);
+				Water.GetComponent<WaterBlockBehaviour>().Lava = true;
+				Water.AddComponent<AcidBurn>();
+				foreach (var particle in Water.GetComponent<WaterBlockBehaviour>().Splash.GetComponentsInChildren<ParticleSystem>())
+				{
+					var shape2 = particle.shape;
+					var main2 = particle.main;
+					shape2.texture = Mod.Acid.texture;
+					main2.startColor = new Color(0, 1, 0, 0.8f);
+				}
+				Water.GetComponent<WaterBlockBehaviour>().Buoyancy -= 0.1f;
+				Water.GetComponent<WaterBlockBehaviour>().Drag += 0.4f;
+			}
+			GameObject.Destroy(Water.GetComponent<WaterBehaviour>());
+		}
+
+		public static void Main()
+		{
+			///Don't do anything yet.
+			if (MapLoaderBehaviour.CurrentMap.UniqueIdentity == Vol.UniqueIdentity)
+            {
+				Debug.Log("Setting up some stuff.");
+				///Destroy?
+				///HrrrrrgghhhhFunnyTextThatNoOneWouldGuessLolXDHAHAfunniepoopoo
+			}
+		}
+	}
+
+	public class TestDelay : MonoBehaviour
+	{
+		public void Awake()
+		{
+			StartCoroutine(Delay());
+		}
+
+		public IEnumerator Delay()
+		{
+			yield return new WaitForSeconds(0f);
+			foreach (var Rig in this.gameObject.GetComponentsInChildren<Rigidbody2D>())
+            {
+				Rig.bodyType = RigidbodyType2D.Static;
+			}
+		}
+	}
+
+	public class ParticleDelay : MonoBehaviour
+    {
+		public string Particles1;
+		public float Speed1;
+		public void Awake()
+        {
+			StartCoroutine(Emit());
+		}
+
+		public IEnumerator Emit()
+		{
+			yield return new WaitForSeconds(0.25f);
+			while (true)
+			{
+				var time = 1f / Speed1;
+				ModAPI.CreateParticleEffect(Particles1.ToString(), gameObject.transform.position);
+				yield return new WaitForSeconds(time);
+			}
+		}
+    }
+
+	public class LavaBurn : MonoBehaviour
+    {
+		private void FixedUpdate()
+		{
+			foreach (PhysicalBehaviour physicalBehaviour in Global.main.PhysicalObjectsInWorld)
+			{
+				if (!physicalBehaviour)
+				{
+					break;
+				}
+				foreach (Vector2 v in physicalBehaviour.LocalColliderGridPoints)
+				{
+					Vector3 vector = physicalBehaviour.transform.TransformPoint(v);
+					if (vector.y <= gameObject.GetComponent<WaterBlockBehaviour>().GlobalTop && vector.y >= gameObject.GetComponent<WaterBlockBehaviour>().GlobalBottom && vector.x >= gameObject.GetComponent<WaterBlockBehaviour>().GlobalLeft && vector.x <= gameObject.GetComponent<WaterBlockBehaviour>().GlobalRight)
+					{
+						if (physicalBehaviour.BurnProgress < 0.95f)
+						{
+							if (physicalBehaviour.Properties.Flammability > 0.1f)
+                            {
+								physicalBehaviour.BurnProgress += 0.01f;
+								physicalBehaviour.Ignite();
+								physicalBehaviour.burnIntensity = 2f;
+							}
+							physicalBehaviour.Temperature += 10f;
+							if (physicalBehaviour.gameObject.GetComponent<LimbBehaviour>())
+                            {
+								physicalBehaviour.gameObject.transform.root.gameObject.GetComponent<PersonBehaviour>().AddPain(5f);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public class AcidBurn : MonoBehaviour
+	{
+		public float a = 1;
+		public float b = 1;
+		public Color ACIDCOLOR = new Color(1,1,1,1);
+
+		private void FixedUpdate()
+		{
+			foreach (PhysicalBehaviour physicalBehaviour in Global.main.PhysicalObjectsInWorld)
+			{
+				if (!physicalBehaviour)
+				{
+					break;
+				}
+				if (physicalBehaviour.transform.root.gameObject.GetComponent<WaterBlockBehaviour>())
+				{
+					continue;
+				}
+				foreach (Vector2 v in physicalBehaviour.LocalColliderGridPoints)
+				{
+					Vector3 vector = physicalBehaviour.transform.TransformPoint(v);
+					if (vector.y <= gameObject.GetComponent<WaterBlockBehaviour>().GlobalTop && vector.y >= gameObject.GetComponent<WaterBlockBehaviour>().GlobalBottom && vector.x >= gameObject.GetComponent<WaterBlockBehaviour>().GlobalLeft && vector.x <= gameObject.GetComponent<WaterBlockBehaviour>().GlobalRight)
+					{
+						if (physicalBehaviour.gameObject.GetComponent<LimbBehaviour>() != null && !physicalBehaviour.isDisintegrated)
+						{
+							float random = UnityEngine.Random.Range(1f, 10f);
+							var limb = physicalBehaviour.gameObject.GetComponent<LimbBehaviour>();
+							var skin = physicalBehaviour.gameObject.GetComponent<SkinMaterialHandler>();
+							if (physicalBehaviour.gameObject.name == "Head" || physicalBehaviour.gameObject.name == "Foot" || physicalBehaviour.gameObject.name == "FootFront")
+                            {
+								limb.SkinMaterialHandler.AcidProgress += Time.deltaTime * 0.025f;
+								limb.SkinMaterialHandler.RottenProgress += Time.deltaTime * 0.025f;
+							}
+                            else
+                            {
+								limb.SkinMaterialHandler.AcidProgress += Time.deltaTime * 0.005f;
+								limb.SkinMaterialHandler.RottenProgress += Time.deltaTime * 0.005f;
+							}
+							limb.Wince(limb.SkinMaterialHandler.AcidProgress * 100f);
+							if (limb.SkinMaterialHandler.AcidProgress > 0.75f)
+							{
+								limb.BreakBone();
+								limb.Health = 0f;
+							}
+							physicalBehaviour.gameObject.transform.root.gameObject.GetComponent<PersonBehaviour>().AddPain(10f);
+							if (limb.Person.OxygenLevel <= 0.7f && !physicalBehaviour.isDisintegrated && physicalBehaviour.gameObject.name != "Head")
+							{
+								if (limb.Health <= 0f)
+								{
+									if (skin.RottenProgress >= 0.7f)
+									{
+										if (skin.AcidProgress >= 0.9f)
+										{
+											if (physicalBehaviour.gameObject.transform.lossyScale.x < 0f && physicalBehaviour.gameObject.GetComponent<LimbBehaviour>() == null)
+											{
+												physicalBehaviour.gameObject.transform.localScale = new Vector2(Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.x + 0.005f, -500000f, 0f), Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.y - 0.005f, 0f, 5000000f));
+												if (physicalBehaviour.gameObject.transform.localScale.x == 0 && physicalBehaviour.gameObject.transform.localScale.y == 0)
+												{
+													AudioSource.PlayClipAtPoint(Mod.acidhiss, physicalBehaviour.gameObject.transform.position, 6f);
+													physicalBehaviour.Disintegrate();
+													break;
+												}
+											}
+											else
+											{
+												physicalBehaviour.gameObject.transform.localScale = new Vector2(Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.x - 0.005f, 0, 5000000f), Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.y - 0.005f, 0f, 5000000f));
+												if (physicalBehaviour.gameObject.transform.localScale.x == 0 && physicalBehaviour.gameObject.transform.localScale.y == 0)
+												{
+													AudioSource.PlayClipAtPoint(Mod.acidhiss, physicalBehaviour.gameObject.gameObject.transform.position, 6f);
+													physicalBehaviour.Disintegrate();
+													break;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						else if (physicalBehaviour.Properties.Flammability > 0.1f && !physicalBehaviour.isDisintegrated)
+                        {
+							if (physicalBehaviour.gameObject.transform.lossyScale.x < 0f && physicalBehaviour.gameObject.GetComponent<LimbBehaviour>() == null)
+							{
+								physicalBehaviour.gameObject.transform.localScale = new Vector2(Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.x + 0.0005f, -500000f, 0f), Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.y - 0.0005f, 0f, 5000000f));
+								if (physicalBehaviour.gameObject.transform.localScale.x == 0 && physicalBehaviour.gameObject.transform.localScale.y == 0)
+								{
+									AudioSource.PlayClipAtPoint(Mod.acidhiss, physicalBehaviour.gameObject.transform.position, 6f);
+									physicalBehaviour.Disintegrate();
+									a = 1;
+									b = 1;
+									break;
+								}
+							}
+							else
+							{
+								physicalBehaviour.gameObject.transform.localScale = new Vector2(Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.x - 0.0005f, 0, 5000000f), Mathf.Clamp(physicalBehaviour.gameObject.transform.localScale.y - 0.0005f, 0f, 5000000f));
+								if (physicalBehaviour.gameObject.transform.localScale.x == 0 && physicalBehaviour.gameObject.transform.localScale.y == 0)
+								{
+									AudioSource.PlayClipAtPoint(Mod.acidhiss, physicalBehaviour.gameObject.gameObject.transform.position, 6f);
+									physicalBehaviour.Disintegrate();
+									a = 1;
+									b = 1;
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public class WaterBlockBehaviour : MonoBehaviour
+	{
+		public bool IsEvaporated
+		{
+			get
+			{
+				if (this.Lava == false)
+				{
+					return PhysicalBehaviour.AmbientTemperature > 200f;
+				}
+				else
+				{
+					return false;
+				}
+			}
+		}
+
+		public bool IsFrozen
+		{
+			get
+			{
+				if (this.Lava == false)
+				{
+					return PhysicalBehaviour.AmbientTemperature < 0f;
+				}
+				else
+				{
+					return false;
+				}
+			}
+		}
+
+		private void Awake()
+		{
+			if (base.gameObject.activeInHierarchy)
+			{
+				WaterBlockBehaviour.Instance = this;
+			}
+		}
+
+		private void Start()
+		{
+			this.SpriteRenderer = base.GetComponent<SpriteRenderer>();
+			if (base.gameObject.activeInHierarchy)
+			{
+				this.waterSizzles = Resources.LoadAll<AudioClip>("Audio/water_sizzle");
+				WaterBlockBehaviour.Instance = this;
+			}
+			UpdateTemperatureState();
+		}
+
+		public static bool IsPointUnderWater(Vector3 pos)
+		{
+			return !WaterBlockBehaviour.Instance.IsEvaporated && !WaterBlockBehaviour.Instance.IsFrozen && pos.y < WaterBlockBehaviour.Instance.GlobalTop && pos.y > WaterBlockBehaviour.Instance.GlobalBottom && pos.x < WaterBlockBehaviour.Instance.GlobalRight && pos.x > WaterBlockBehaviour.Instance.GlobalLeft;
+		}
+
+		public static float GetWaterLevelOr(float fallback = -3.40282347E+38f)
+		{
+			if (!WaterBlockBehaviour.Instance)
+			{
+				return fallback;
+			}
+			if (WaterBlockBehaviour.Instance.IsEvaporated || WaterBlockBehaviour.Instance.IsFrozen)
+			{
+				return fallback;
+			}
+			return WaterBlockBehaviour.Instance.GlobalTop;
+		}
+
+		private void OnTriggerEnter2D(Collider2D collision)
+		{
+			if (!this.IsEvaporated && !this.IsFrozen)
+			{
+				this.DoSplash(collision);
+			}
+		}
+
+		private void OnTriggerExit2D(Collider2D collision)
+		{
+			if (!this.IsEvaporated && !this.IsFrozen)
+			{
+				this.DoSplash(collision);
+			}
+		}
+
+		private void DoSplash(Collider2D collision)
+		{
+			if (!UserPreferenceManager.Current.FancyEffects)
+			{
+				return;
+			}
+			if (collision.isTrigger)
+			{
+				return;
+			}
+			PhysicalBehaviour physicalBehaviour;
+			if (!Global.main.PhysicalObjectsInWorldByTransform.TryGetValue(collision.transform, out physicalBehaviour))
+			{
+				return;
+			}
+			Rigidbody2D rigidbody = physicalBehaviour.rigidbody;
+			GameObject gameObject = PoolGenerator.Instance.RequestPrefab(this.Splash, this.Trigger.bounds.ClosestPoint(collision.transform.position));
+			gameObject.SetActive(true);
+			Vector2 velocity = rigidbody.velocity;
+			velocity.y = -Mathf.Abs(velocity.y);
+			gameObject.transform.up = Vector2.Reflect(velocity, Vector2.up);
+			float num = Mathf.Min(collision.bounds.extents.x, 4f);
+			float num2 = Mathf.Clamp(rigidbody.velocity.magnitude * 0.5f * rigidbody.mass, 0.2f, 25f);
+			gameObject.GetComponent<AudioSource>().volume = num2 / 15f;
+			foreach (ParticleSystem particleSystem in gameObject.GetComponentsInChildren<ParticleSystem>())
+			{
+				ParticleSystem.ShapeModule shape = particleSystem.shape;
+				ParticleSystem.MainModule main = particleSystem.main;
+				shape.radius = num;
+				main.startSizeMultiplier = num * 2.5f * UnityEngine.Random.Range(1f, 1.4f);
+				main.startSpeedMultiplier = num2;
+			}
+		}
+
+		public void UpdateTemperatureState()
+		{
+			if (this.IsFrozen)
+			{
+				this.SetFrozen();
+				return;
+			}
+			this.Ice.gameObject.SetActive(false);
+			if (this.wasFrozen)
+			{
+				foreach (PhysicalBehaviour physicalBehaviour in this.frozenInIce)
+				{
+					if (!physicalBehaviour)
+					{
+						return;
+					}
+					FrozenInIceBehaviour obj;
+					if (physicalBehaviour.TryGetComponent<FrozenInIceBehaviour>(out obj))
+					{
+						UnityEngine.Object.Destroy(obj);
+						FreezeStackController.RequestUnfreeze(physicalBehaviour.rigidbody);
+					}
+				}
+				this.wasFrozen = false;
+			}
+			this.frozenInIce.Clear();
+			if (this.IsEvaporated)
+			{
+				this.SetEvaporated();
+				return;
+			}
+			this.BoilingWaterSound.SetActive(PhysicalBehaviour.AmbientTemperature >= 100f);
+			foreach (var renderer in base.GetComponents<Renderer>())
+			{
+				if (renderer != this.SpriteRenderer)
+				{
+					renderer.enabled = true;
+				}
+			}
+			this.Trigger.enabled = true;
+			this.Trigger.isTrigger = true;
+			this.SpriteRenderer.enabled = true;
+			GameObject[] objectsToBeActiveIfWater = this.ObjectsToBeActiveIfWater;
+			for (int i = 0; i < objectsToBeActiveIfWater.Length; i++)
+			{
+				objectsToBeActiveIfWater[i].SetActive(true);
+			}
+		}
+
+		private void SetEvaporated()
+		{
+			this.BoilingWaterSound.SetActive(false);
+			foreach (var renderer in base.GetComponents<Renderer>())
+            {
+				if (renderer != this.SpriteRenderer)
+                {
+					renderer.enabled = false;
+				}
+            }
+			this.Trigger.enabled = false;
+			this.SpriteRenderer.enabled = false;
+			GameObject[] objectsToBeActiveIfWater = this.ObjectsToBeActiveIfWater;
+			for (int i = 0; i < objectsToBeActiveIfWater.Length; i++)
+			{
+				objectsToBeActiveIfWater[i].SetActive(false);
+			}
+		}
+
+		private void SetFrozen()
+		{
+			this.BoilingWaterSound.SetActive(false);
+			foreach (var renderer in base.GetComponents<Renderer>())
+			{
+				if (renderer != this.SpriteRenderer)
+				{
+					renderer.enabled = false;
+				}
+			}
+			this.Ice.gameObject.SetActive(true);
+			this.wasFrozen = true;
+			this.Trigger.isTrigger = false;
+			this.SpriteRenderer.enabled = true;
+			GameObject[] objectsToBeActiveIfWater = this.ObjectsToBeActiveIfWater;
+			for (int i = 0; i < objectsToBeActiveIfWater.Length; i++)
+			{
+				objectsToBeActiveIfWater[i].SetActive(false);
+			}
+			foreach (PhysicalBehaviour physicalBehaviour in Global.main.PhysicalObjectsInWorld)
+			{
+				if (!this.frozenInIce.Contains(physicalBehaviour))
+				{
+					int num = 0;
+					int num2 = physicalBehaviour.LocalColliderGridPoints.Length;
+					foreach (Vector2 v in physicalBehaviour.LocalColliderGridPoints)
+					{
+						if (physicalBehaviour.transform.TransformPoint(v).y <= this.GlobalTop && physicalBehaviour.transform.TransformPoint(v).y >= this.GlobalBottom && physicalBehaviour.transform.TransformPoint(v).x >= this.GlobalLeft && physicalBehaviour.transform.TransformPoint(v).y <= this.GlobalRight)
+						{
+							num++;
+							if ((float)num / (float)num2 >= 0.1f)
+							{
+								physicalBehaviour.rigidbody.velocity = default(Vector2);
+								physicalBehaviour.rigidbody.angularVelocity = 0f;
+								FreezeStackController.RequestFreeze(physicalBehaviour.rigidbody);
+								this.frozenInIce.Add(physicalBehaviour);
+								physicalBehaviour.gameObject.AddComponent<FrozenInIceBehaviour>();
+								physicalBehaviour.Temperature = Mathf.Min(physicalBehaviour.Temperature, PhysicalBehaviour.AmbientTemperature);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		private void FixedUpdate()
+		{
+			if (this.IsFrozen)
+			{
+				this.Ice.Temperature = PhysicalBehaviour.AmbientTemperature;
+				foreach (PhysicalBehaviour physicalBehaviour in this.frozenInIce)
+				{
+					if (!physicalBehaviour)
+					{
+						return;
+					}
+					if (physicalBehaviour.OnFire)
+					{
+						physicalBehaviour.Extinguish();
+					}
+					FrozenInIceBehaviour obj;
+					if (physicalBehaviour.transform.position.y > this.GlobalTop && physicalBehaviour.transform.position.y < this.GlobalBottom && physicalBehaviour.transform.position.y < this.GlobalRight && physicalBehaviour.transform.position.y > this.GlobalLeft && physicalBehaviour.TryGetComponent<FrozenInIceBehaviour>(out obj))
+					{
+						UnityEngine.Object.Destroy(obj);
+						FreezeStackController.RequestUnfreeze(physicalBehaviour.rigidbody);
+					}
+				}
+				return;
+			}
+			if (this.IsEvaporated)
+			{
+				return;
+			}
+			Vector3 a = Vector3.up * this.Buoyancy;
+			float num = Mathf.Min(PhysicalBehaviour.AmbientTemperature, 100f);
+			bool flag = PhysicalBehaviour.AmbientTemperature >= 100f;
+			foreach (PhysicalBehaviour physicalBehaviour2 in Global.main.PhysicalObjectsInWorld)
+			{
+				if (!physicalBehaviour2)
+				{
+					break;
+				}
+				float num2 = Mathf.Clamp(Mathf.Pow(Mathf.Abs(physicalBehaviour2.transform.position.y - this.GlobalTop), 0.25f), 1f, 8f);
+				float d = Mathf.Clamp01((num2 - 1f) / 7f) + 1f;
+				Vector2 force = a * physicalBehaviour2.Properties.Buoyancy * physicalBehaviour2.rigidbody.mass / (float)physicalBehaviour2.LocalGridPointLength * num2;
+				bool flag2 = false;
+				physicalBehaviour2.CurrentWaterSurfaceLevel = this.GlobalTop;
+				foreach (Vector2 v in physicalBehaviour2.LocalColliderGridPoints)
+				{
+					Vector3 vector = physicalBehaviour2.transform.TransformPoint(v);
+					if (vector.y <= this.GlobalTop && vector.y >= this.GlobalBottom && vector.x <= this.GlobalRight && vector.x >= this.GlobalLeft)
+					{
+						flag2 = true;
+						physicalBehaviour2.rigidbody.AddForceAtPosition(force, vector);
+						Vector2 pointVelocity = physicalBehaviour2.rigidbody.GetPointVelocity(vector);
+						physicalBehaviour2.rigidbody.AddForceAtPosition(-pointVelocity * d * this.GetDragFactor(pointVelocity) * physicalBehaviour2.rigidbody.mass * 0.4f, vector);
+					}
+				}
+				bool flag3 = !physicalBehaviour2.IsUnderWater;
+				physicalBehaviour2.IsUnderWater = flag2;
+				if (flag2)
+				{
+					AliveBehaviour aliveBehaviour;
+					if (flag && AliveBehaviour.AliveByTransform.TryGetValue(physicalBehaviour2.transform.root, out aliveBehaviour))
+					{
+						physicalBehaviour2.BurnProgress = Mathf.Max(physicalBehaviour2.BurnProgress, 0.5f);
+						aliveBehaviour.SendMessage("AddPain", 15f, SendMessageOptions.DontRequireReceiver);
+					}
+					physicalBehaviour2.Temperature = Mathf.Lerp(physicalBehaviour2.Temperature, num, 0.05f * physicalBehaviour2.Properties.HeatTransferSpeedMultiplier);
+					if (flag3 && physicalBehaviour2.Temperature >= 100f && physicalBehaviour2.Temperature > num * 2f)
+					{
+						physicalBehaviour2.PlayClipOnce(this.waterSizzles.PickRandom<AudioClip>(), 1f);
+						physicalBehaviour2.Sizzle(false);
+					}
+					physicalBehaviour2.Wetness += 0.1f;
+					physicalBehaviour2.SendMessage("WaterImpact", physicalBehaviour2.rigidbody.velocity.magnitude, SendMessageOptions.DontRequireReceiver);
+					physicalBehaviour2.SendMessage("Suspended", SendMessageOptions.DontRequireReceiver);
+				}
+			}
+		}
+
+		private void Update()
+        {
+			UpdateTemperatureState();
+		}
+
+		private float GetDragFactor(Vector2 velocity)
+		{
+			float num = velocity.sqrMagnitude * 0.1f;
+			return Mathf.Clamp(Mathf.Pow(num + 1f, num * this.Drag), 0.2f, 1f);
+		}
+
+		private void OnWillRenderObject()
+		{
+			if (!this.mat)
+			{
+				this.mat = this.SpriteRenderer.material;
+			}
+			if (this.mat)
+			{
+				this.mat.SetFloat("_Temperature", PhysicalBehaviour.AmbientTemperature);
+			}
+		}
+
+		public float Drag;
+		public float Buoyancy;
+		public float GlobalTop;
+		public float GlobalBottom;
+		public float GlobalLeft;
+		public float GlobalRight;
+		public Vector2 WaterCenter;
+		public Vector2 WaterSize;
+		public bool Lava = false;
+		public GameObject[] ObjectsToBeActiveIfWater;
+		public GameObject Splash;
+		public GameObject BoilingWaterSound;
+		public SpriteRenderer SpriteRenderer;
+		public Collider2D Trigger;
+		public Collider2D[] insideWater = new Collider2D[1024];
+		public LayerMask Layers;
+		public PhysicalBehaviour Ice;
+		private bool wasFrozen;
+		private AudioClip[] waterSizzles;
+		private HashSet<PhysicalBehaviour> frozenInIce = new HashSet<PhysicalBehaviour>();
+		private Material mat;
+		public static WaterBlockBehaviour Instance;
+	}
+}

@@ -1,0 +1,129 @@
+public class WaterBlockBehaviour : MonoBehaviour ///WaterBehaviour but with more than just the GlobalTop
+	{
+		private void Awake()
+		{
+			if (base.gameObject.activeInHierarchy)
+			{
+				WaterBlockBehaviour.Instance = this;
+			}
+		}
+		private void Start()
+		{
+			if (base.gameObject.activeInHierarchy)
+			{
+				WaterBlockBehaviour.Instance = this;
+			}
+		}
+		public static bool IsPointUnderWater(Vector3 pos)
+		{
+			return WaterBlockBehaviour.Instance && pos.y < WaterBlockBehaviour.Instance.GlobalTop && pos.y > WaterBlockBehaviour.Instance.GlobalBottom && pos.x > WaterBlockBehaviour.Instance.GlobalLeft && pos.x < WaterBlockBehaviour.Instance.GlobalRight;
+		}
+		public static float GetWaterLevelOr(float fallback = -3.40282347E+38f)
+		{
+			if (!WaterBlockBehaviour.Instance)
+			{
+				return fallback;
+			}
+			return WaterBlockBehaviour.Instance.GlobalTop;
+		}
+		private void OnTriggerEnter2D(Collider2D collision)
+		{
+			this.DoSplash(collision);
+		}
+		private void OnTriggerExit2D(Collider2D collision)
+		{
+			this.DoSplash(collision);
+		}
+		private void DoSplash(Collider2D collision)
+		{
+			if (!UserPreferenceManager.Current.FancyEffects)
+			{
+				return;
+			}
+			if (collision.isTrigger)
+			{
+				return;
+			}
+			PhysicalBehaviour physicalBehaviour;
+			if (!Global.main.PhysicalObjectsInWorldByTransform.TryGetValue(collision.transform, out physicalBehaviour))
+			{
+				return;
+			}
+			Rigidbody2D rigidbody = physicalBehaviour.rigidbody;
+			GameObject gameObject = UnityEngine.Object.Instantiate<GameObject>(this.Splash, this.Trigger.bounds.ClosestPoint(collision.transform.position), Quaternion.identity);
+			Vector2 velocity = rigidbody.velocity;
+			gameObject.SetActive(true);
+			velocity.y = -Mathf.Abs(velocity.y);
+			gameObject.transform.up = Vector2.Reflect(velocity, Vector2.up);
+			float num = Mathf.Min(collision.bounds.extents.x, 4f);
+			float num2 = Mathf.Clamp(rigidbody.velocity.magnitude * 0.5f * rigidbody.mass, 0.2f, 25f);
+			gameObject.GetComponent<AudioSource>().volume = num2 / 15f;
+			foreach (ParticleSystem particleSystem in gameObject.GetComponentsInChildren<ParticleSystem>())
+			{
+				ParticleSystem.ShapeModule shape = particleSystem.shape;
+				ParticleSystem.MainModule main = particleSystem.main;
+				shape.radius = num;
+				main.startSizeMultiplier = num * 2.5f * UnityEngine.Random.Range(1f, 1.4f);
+				main.startSpeedMultiplier = num2;
+			}
+		}
+		private void FixedUpdate()
+		{
+			Vector3 a = Vector3.up * this.Buoyancy;
+			foreach (PhysicalBehaviour physicalBehaviour in Global.main.PhysicalObjectsInWorld)
+			{
+				if (!physicalBehaviour)
+				{
+					break;
+				}
+				float num = Mathf.Clamp(Mathf.Pow(Mathf.Abs(physicalBehaviour.transform.position.y - this.GlobalTop), 0.25f), 1f, 8f);
+				float d = Mathf.Clamp01((num - 1f) / 7f) + 1f;
+				Vector2 force = a * physicalBehaviour.Properties.Buoyancy * physicalBehaviour.rigidbody.mass / (float)physicalBehaviour.LocalGridPointLength * num;
+				bool flag = false;
+				physicalBehaviour.CurrentWaterSurfaceLevel = this.GlobalTop;
+				foreach (Vector2 v in physicalBehaviour.LocalColliderGridPoints)
+				{
+					Vector3 vector = physicalBehaviour.transform.TransformPoint(v);
+					if (vector.y <= this.GlobalTop && vector.y >= this.GlobalBottom && vector.x <= this.GlobalRight && vector.x >= this.GlobalLeft)
+					{
+						flag = true;
+						physicalBehaviour.rigidbody.AddForceAtPosition(force, vector);
+						Vector2 pointVelocity = physicalBehaviour.rigidbody.GetPointVelocity(vector);
+						physicalBehaviour.rigidbody.AddForceAtPosition(-pointVelocity * d * this.GetDragFactor(pointVelocity) * physicalBehaviour.rigidbody.mass * 0.4f, vector);
+						///CUSTOMEFFECTS
+					}
+				}
+				physicalBehaviour.IsUnderWater = flag;
+				if (flag)
+				{
+					physicalBehaviour.Wetness += 0.1f;
+					physicalBehaviour.SendMessage("WaterImpact", physicalBehaviour.rigidbody.velocity.magnitude, SendMessageOptions.DontRequireReceiver);
+					physicalBehaviour.SendMessage("Suspended", SendMessageOptions.DontRequireReceiver);
+				}
+			}
+		}
+		private float GetDragFactor(Vector2 velocity)
+		{
+			float num = velocity.sqrMagnitude * 0.1f;
+			return Mathf.Clamp(Mathf.Pow(num + 1f, num * this.Drag), 0.2f, 1f);
+		}
+		private void OnDrawGizmos()
+		{
+			Gizmos.color = Color.cyan;
+			Gizmos.DrawLine(new Vector3(-99999f, this.GlobalTop), new Vector3(99999f, this.GlobalTop));
+			Gizmos.DrawWireCube(this.WaterCenter, this.WaterSize);
+		}
+		public float Drag;
+		public float Buoyancy;
+		public float GlobalTop;
+		public float GlobalBottom;
+		public float GlobalLeft;
+		public float GlobalRight;
+		public Vector2 WaterCenter;
+		public Vector2 WaterSize;
+		public GameObject Splash;
+		public Collider2D Trigger;
+		public Collider2D[] insideWater = new Collider2D[1024];
+		public LayerMask Layers;
+		public static WaterBlockBehaviour Instance;
+	}
