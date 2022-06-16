@@ -37,8 +37,7 @@ namespace Mod
 				mapname = Vol.name;
 				Vol.Description = desc;
 				Vol.Thumbnail = thumb;
-				var baseplate = Resources.Load<Map>("Maps/Default");
-				Vol.Prefab = baseplate.Prefab;
+				Vol.InstantiateOverride += new Action<Transform>(MapLoad);
 				Vol.UniqueIdentity = System.Guid.NewGuid().ToString();
 				MapRegistry.Register(Vol);
 			}
@@ -358,15 +357,12 @@ namespace Mod
 			GameObject.Destroy(Water.GetComponent<WaterBehaviour>());
 		}
 
-		public static void Main()
+		public static void MapLoad(Transform map)
 		{
-			///Don't do anything yet.
-			if (MapLoaderBehaviour.CurrentMap.UniqueIdentity == Vol.UniqueIdentity)
-            {
-				Debug.Log("Setting up some stuff.");
-				///Destroy?
-				///HrrrrrgghhhhFunnyTextThatNoOneWouldGuessLolXDHAHAfunniepoopoo
-			}
+			Debug.Log("Setting up some stuff.");
+			Instantiate(Resources.Load<Map>("Maps/Default").Prefab, map);
+			///Destroy?
+			///HrrrrrgghhhhFunnyTextThatNoOneWouldGuessLolXDHAHAfunniepoopoo
 		}
 	}
 
