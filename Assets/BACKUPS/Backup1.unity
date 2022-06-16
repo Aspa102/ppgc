@@ -12810,7 +12810,7 @@ GameObject:
   - component: {fileID: 957208249}
   - component: {fileID: 957208251}
   m_Layer: 7
-  m_Name: Custom
+  m_Name: Custom2
   m_TagString: Delete
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -17950,6 +17950,14 @@ MonoBehaviour:
   Map: {fileID: 1409961366}
   border: {fileID: 519420038}
   background: {fileID: 519420037}
+  images:
+  - {fileID: 2800000, guid: f5cc9d1a6ad9c9847abd05e84523c7ac, type: 3}
+  - {fileID: 2800000, guid: 7bfdde4cbeb6d804b8eb4c5f057b642c, type: 3}
+  - {fileID: 2800000, guid: ae4bb591beaa3234984093b273858ffa, type: 3}
+  - {fileID: 2800000, guid: 9357fe03c24b1c7439cf756e4f4edb23, type: 3}
+  - {fileID: 2800000, guid: 9f22441e5b9c55f4db3792a3a162b97b, type: 3}
+  - {fileID: 2800000, guid: 9799763db6f832f40a767fb3f0ad344c, type: 3}
+  - {fileID: 2800000, guid: 24a0fa23122e69742bea89cec8039adb, type: 3}
   amb: {fileID: 71047670}
   one: {fileID: 1644890628}
   two: {fileID: 619444509}

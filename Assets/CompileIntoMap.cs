@@ -115,7 +115,7 @@ public class CompileIntoMap : MonoBehaviour
                     evenmorecharacters += pleasehelp;
                     last.Add(pleasehelp);
                 }
-            } else if (block.name == "Custom")
+            } else if (block.name == "Custom" || block.name == "Custom2")
             {
                 bruh = "CreateCustomGameObjects(" + "\u0022" + block.name + "\u0022" + ", new Vector2(" + block.transform.position.x + "f, " + block.transform.position.y + "f), new Vector2(" + block.transform.localScale.x + "f, " + block.transform.localScale.y + "f), Quaternion.Euler(0f, 0f, " + block.transform.eulerAngles.z + "f), " + block.GetComponent<SpriteRenderer>().sprite.name.Replace(" ", String.Empty) + ", \u0022" + block.GetComponent<LayerThing>().Layer + "\u0022, " + block.GetComponent<CollisionThing>().Collision.ToString().ToLower() + ", " + block.GetComponent<SpriteRenderer>().sortingOrder + ");&";
                 byte[] imagestuff = block.GetComponent<SpriteRenderer>().sprite.texture.EncodeToPNG();

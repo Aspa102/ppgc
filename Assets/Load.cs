@@ -15,6 +15,7 @@ public class Load : MonoBehaviour
     public GameObject Map;
     public BorderSettings border;
     public BackgroundSettings background;
+    public List<Texture2D> images;
     public AmbienceClips amb;
     public TMP_InputField one;
     public TMP_InputField two;
@@ -104,10 +105,47 @@ public class Load : MonoBehaviour
         gameObject.GetComponent<SpawnablePrefab>().Prefab = state.SpawnableName;
         gameObject.GetComponent<SpawnablePrefab>().Frozen = state.Frozen;
         var texture = new Texture2D(state.width, state.height);
-        texture.LoadImage(System.IO.File.ReadAllBytes(Application.persistentDataPath + "/Images/" + state.sprite + ".png"));
-        texture.wrapMode = TextureWrapMode.Clamp;
-        texture.filterMode = FilterMode.Point;
-        texture.Apply();
+        if (state.SpriteName.Contains("veryveryverynull"))
+        {
+            switch (state.Name)
+            {
+                case "Other": //cube
+                    texture = images[2];
+                    break;
+
+                case "Custom": //circle
+                    texture = images[0];
+                    break;
+
+                case "Custom2": //tri
+                    texture = images[1];
+                    break;
+
+                case "Light":
+                    texture = images[6];
+                    break;
+
+                case "Particles":
+                    texture = images[5];
+                    break;
+
+                case "Water":
+                    texture = images[4];
+                    break;
+
+                case "Unknown":
+                    texture = images[3];
+                    break;
+            }
+        }
+        else
+        {
+            texture.LoadImage(System.IO.File.ReadAllBytes(Application.persistentDataPath + "/Images/" + state.sprite + ".png"));
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Point;
+            texture.Apply();
+        }
+        
         var sprite = Sprite.Create(texture, new Rect(0.0f, 0.0f, state.width, state.height), new Vector2(0.5f, 0.5f), state.ImgSize);
         sprite.name = state.SpriteName + "Loaded" + (int)UnityEngine.Random.Range(1f, 950000000f);
         gameObject.GetComponent<SpriteRenderer>().sprite = sprite;

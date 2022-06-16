@@ -128,7 +128,6 @@ public class Save : MonoBehaviour
                 Scale = MapObject.transform.localScale,
                 RotEuler = MapObject.transform.eulerAngles,
                 sprite = MapObject.GetComponent<SpriteRenderer>().sprite.texture.name,
-                SpriteName = MapObject.GetComponent<SpriteRenderer>().sprite.name,
                 width = MapObject.GetComponent<SpriteRenderer>().sprite.texture.width,
                 height = MapObject.GetComponent<SpriteRenderer>().sprite.texture.height,
                 ImgSize = MapObject.GetComponent<SpriteRenderer>().sprite.pixelsPerUnit,
@@ -141,6 +140,10 @@ public class Save : MonoBehaviour
             {
                 obj.LightColor = MapObject.GetComponent<TheColorOfTheObject>().Colorhelp;
                 obj.LightRange = MapObject.GetComponent<Brightness>().brightness;
+            }
+            if (MapObject.GetComponent<SpriteRenderer>().sprite.name.Contains("CustomSprite"))
+            {
+                obj.SpriteName = MapObject.GetComponent<SpriteRenderer>().sprite.name;
             }
             if (MapObject.name == "Particles")
             {
@@ -247,7 +250,7 @@ public class ObjectState
     [SerializeField] public int BackgroundSizeH = 16;
     [SerializeField] public string SpawnableName = "Human";
     [SerializeField] public bool FacingRight = true;
-    [SerializeField] public string SpriteName = "null";
+    [SerializeField] public string SpriteName = "veryveryverynull";
     [SerializeField] public int ObjectLayer;
 }
 
